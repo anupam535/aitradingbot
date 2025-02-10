@@ -3,10 +3,11 @@ import time
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 from alpaca_trade_api.rest import REST
 from alpaca_trade_api.stream import Stream
-from telegram import Update
-from telegram.ext import Application, CommandHandler, CallbackContext
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackContext, MessageHandler, filters
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -31,12 +32,9 @@ high_profit_stocks = []
 # Function to fetch historical data from Alpaca API
 def get_historical_data(symbol, timeframe='1Day', limit=100):
     try:
-        # Fetch raw data from Alpaca API
         barset = api.get_bars(symbol, timeframe, limit=limit).df
-
         # Flatten the MultiIndex columns into a single-level index
         barset.columns = [col[1] if col[1] != '' else col[0] for col in barset.columns]
-
         return barset
     except Exception as e:
         print(f"Error fetching data for {symbol}: {e}")
@@ -113,9 +111,7 @@ def find_high_profit_stocks():
 
 # Telegram command handlers
 async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text("Hello Master Welcome to the AI Trading Bot! Use /stock or /crypto to analyze markets.")
-
-# ... (rest of the script remains unchanged)
+    await update.message.reply_text("Welcome to the AI Trading Bot! Use /stock or /crypto to analyze markets.")
 
 async def stock_analysis(update: Update, context: CallbackContext):
     if update.message.from_user.id != ADMIN_ID:
@@ -176,27 +172,57 @@ async def toggle_alerts(update: Update, context: CallbackContext):
     status = "enabled" if alerts_enabled else "disabled"
     await update.message.reply_text(f"Real-time alerts are now {status}.")
 
-# Main function
-if __name__ == '__main__':
-    # Train the model at startup
-    train_model()
+async def stock_info(update: Update, context: CallbackContext):
+    query = update.callback_query
+    if query is None:
+        return
+    symbol = query.data
+    data = get_historical_data(symbol)
+    if data is not None:
+        close_price = data['close'].iloc[-1]
+        open_price = data['open'].iloc[-1]
+        high = data['high'].iloc[-1]
+        low = data['low'].iloc[-1]
+        volume = data['volume'].iloc[-1]
+        signal = predict_signal(data)
+        await query.edit_message_text(
+            f"Stock Info for {symbol}:\n"
+            f"Close Price: {close_price:.2f}\n"
+            f"Open Price: {open_price:.2f}\n"
+            f"High: {high:.2f}\n"
+            f"Low: {low:.2f}\n"
+            f"Volume: {volume}\n"
+            f"Signal: {signal}"
+        )
+    else:
+        await query.edit_message_text(f"Failed to fetch stock data for {symbol}.")
 
-    # Initialize Telegram bot
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
+# Add command handlers
+application = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    # Add command handlers
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('stock', stock_analysis))
-    application.add_handler(CommandHandler('crypto', crypto_analysis))
-    application.add_handler(CommandHandler('signal', trading_signal))
-    application.add_handler(CommandHandler('highprofit', high_profit_stocks_command))
-    application.add_handler(CommandHandler('togglealerts', toggle_alerts))
+application.add_handler(CommandHandler('start', start))
+application.add_handler(CommandHandler('stock', stock_analysis))
+application.add_handler(CommandHandler('crypto', crypto_analysis))
+application.add_handler(CommandHandler('signal', trading_signal))
+application.add_handler(CommandHandler('highprofit', high_profit_stocks_command))
+application.add_handler(CommandHandler('togglealerts', toggle_alerts))
 
-    # Start the Telegram bot
-    print("Telegram bot started...")
-    application.run_polling()
+# Inline keyboard for stock info
+stock_symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA']
+keyboard = [[InlineKeyboardButton(symbol, callback_data=symbol)] for symbol in stock_symbols]
+reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Start WebSocket stream for real-time alerts
-    conn = Stream(ALPACA_API_KEY, ALPACA_SECRET_KEY, base_url=BASE_URL)
-    conn.subscribe_bars(on_bar, *['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'])  # Subscribe to stocks
-    conn.run()
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda update, context: update.message.reply_text("Please use the available commands.", reply_markup=reply_markup)))
+application.add_handler(CallbackQueryHandler(stock_info))
+
+# Train the model at startup
+train_model()
+
+# Start the Telegram bot
+print("Telegram bot started...")
+application.run_polling()
+
+# Start WebSocket stream for real-time alerts
+conn = Stream(ALPACA_API_KEY, ALPACA_SECRET_KEY, base_url=BASE_URL)
+conn.subscribe_bars(on_bar, *stock_symbols)  # Subscribe to stocks
+conn.run()
