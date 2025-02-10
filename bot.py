@@ -6,7 +6,7 @@ from sklearn.ensemble import RandomForestClassifier
 from alpaca_trade_api.rest import REST
 from alpaca_trade_api.stream import Stream
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram.ext import Application, CommandHandler, CallbackContext
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -22,10 +22,6 @@ api = REST(ALPACA_API_KEY, ALPACA_SECRET_KEY, BASE_URL, api_version='v2')
 # Telegram Bot Token
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 ADMIN_ID = int(os.getenv('ADMIN_ID'))  # Replace with your Telegram user ID
-
-# Initialize Telegram bot
-updater = Updater(token=TELEGRAM_TOKEN, use_context=True)
-dispatcher = updater.dispatcher
 
 # Global variables
 model = None
@@ -94,7 +90,7 @@ async def on_bar(conn, bar):
         signal = predict_signal(data)
         stop_loss, take_profit = calculate_stop_loss_take_profit(current_price, signal)
         message = f"Alert: {symbol} -> Signal: {signal}, Price: {current_price:.2f}, Stop Loss: {stop_loss:.2f}, Take Profit: {take_profit:.2f}"
-        dispatcher.bot.send_message(chat_id=ADMIN_ID, text=message)
+        await application.bot.send_message(chat_id=ADMIN_ID, text=message)
 
 # Function to find high-profit stocks for the day
 def find_high_profit_stocks():
@@ -111,48 +107,48 @@ def find_high_profit_stocks():
     print("High-profit stocks identified.")
 
 # Telegram command handlers
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text("Welcome to the AI Trading Bot! Use /stock or /crypto to analyze markets.")
+async def start(update: Update, context: CallbackContext):
+    await update.message.reply_text("Hello Master, Welcome to the AI Trading Bot! Use /stock or /crypto to analyze markets.")
 
-def stock_analysis(update: Update, context: CallbackContext):
+async def stock_analysis(update: Update, context: CallbackContext):
     if update.message.from_user.id != ADMIN_ID:
-        update.message.reply_text("You do not have permission to use this command.")
+        await update.message.reply_text("You do not have permission to use this command.")
         return
     symbol = 'AAPL'  # Example stock
     data = get_historical_data(symbol)
     if data is not None:
         signal = predict_signal(data)
-        update.message.reply_text(f"Stock Analysis for {symbol}: Signal -> {signal}")
+        await update.message.reply_text(f"Stock Analysis for {symbol}: Signal -> {signal}")
     else:
-        update.message.reply_text("Failed to fetch stock data.")
+        await update.message.reply_text("Failed to fetch stock data.")
 
-def crypto_analysis(update: Update, context: CallbackContext):
+async def crypto_analysis(update: Update, context: CallbackContext):
     if update.message.from_user.id != ADMIN_ID:
-        update.message.reply_text("You do not have permission to use this command.")
+        await update.message.reply_text("You do not have permission to use this command.")
         return
     symbol = 'BTCUSD'  # Example crypto
     data = get_historical_data(symbol)
     if data is not None:
         signal = predict_signal(data)
-        update.message.reply_text(f"Crypto Analysis for {symbol}: Signal -> {signal}")
+        await update.message.reply_text(f"Crypto Analysis for {symbol}: Signal -> {signal}")
     else:
-        update.message.reply_text("Failed to fetch crypto data.")
+        await update.message.reply_text("Failed to fetch crypto data.")
 
-def trading_signal(update: Update, context: CallbackContext):
+async def trading_signal(update: Update, context: CallbackContext):
     if update.message.from_user.id != ADMIN_ID:
-        update.message.reply_text("You do not have permission to use this command.")
+        await update.message.reply_text("You do not have permission to use this command.")
         return
     symbol = 'AAPL'  # Example asset
     data = get_historical_data(symbol)
     if data is not None:
         signal = predict_signal(data)
-        update.message.reply_text(f"Trading Signal for {symbol}: {signal}")
+        await update.message.reply_text(f"Trading Signal for {symbol}: {signal}")
     else:
-        update.message.reply_text("Failed to generate trading signal.")
+        await update.message.reply_text("Failed to generate trading signal.")
 
-def high_profit_stocks_command(update: Update, context: CallbackContext):
+async def high_profit_stocks_command(update: Update, context: CallbackContext):
     if update.message.from_user.id != ADMIN_ID:
-        update.message.reply_text("You do not have permission to use this command.")
+        await update.message.reply_text("You do not have permission to use this command.")
         return
     if not high_profit_stocks:
         find_high_profit_stocks()
@@ -160,40 +156,40 @@ def high_profit_stocks_command(update: Update, context: CallbackContext):
         response = "High-Profit Stocks Today:\n"
         for stock, return_rate in high_profit_stocks:
             response += f"{stock}: {return_rate * 100:.2f}%\n"
-        update.message.reply_text(response)
+        await update.message.reply_text(response)
     else:
-        update.message.reply_text("No high-profit stocks found today.")
+        await update.message.reply_text("No high-profit stocks found today.")
 
-def toggle_alerts(update: Update, context: CallbackContext):
+async def toggle_alerts(update: Update, context: CallbackContext):
     global alerts_enabled
     if update.message.from_user.id != ADMIN_ID:
-        update.message.reply_text("You do not have permission to use this command.")
+        await update.message.reply_text("You do not have permission to use this command.")
         return
     alerts_enabled = not alerts_enabled
     status = "enabled" if alerts_enabled else "disabled"
-    update.message.reply_text(f"Real-time alerts are now {status}.")
-
-# Add command handlers
-dispatcher.add_handler(CommandHandler('start', start))
-dispatcher.add_handler(CommandHandler('stock', stock_analysis))
-dispatcher.add_handler(CommandHandler('crypto', crypto_analysis))
-dispatcher.add_handler(CommandHandler('signal', trading_signal))
-dispatcher.add_handler(CommandHandler('highprofit', high_profit_stocks_command))
-dispatcher.add_handler(CommandHandler('togglealerts', toggle_alerts))
+    await update.message.reply_text(f"Real-time alerts are now {status}.")
 
 # Main function
 if __name__ == '__main__':
     # Train the model at startup
     train_model()
 
+    # Initialize Telegram bot
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
+
+    # Add command handlers
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(CommandHandler('stock', stock_analysis))
+    application.add_handler(CommandHandler('crypto', crypto_analysis))
+    application.add_handler(CommandHandler('signal', trading_signal))
+    application.add_handler(CommandHandler('highprofit', high_profit_stocks_command))
+    application.add_handler(CommandHandler('togglealerts', toggle_alerts))
+
     # Start the Telegram bot
-    updater.start_polling()
     print("Telegram bot started...")
+    application.run_polling()
 
     # Start WebSocket stream for real-time alerts
     conn = Stream(ALPACA_API_KEY, ALPACA_SECRET_KEY, base_url=BASE_URL)
     conn.subscribe_bars(on_bar, *['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'])  # Subscribe to stocks
     conn.run()
-
-    # Keep the bot running
-    updater.idle()
