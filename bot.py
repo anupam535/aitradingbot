@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 from alpaca_trade_api.rest import REST
 from alpaca_trade_api.stream import Stream
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackContext, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, CallbackContext, MessageHandler, filters, CallbackQueryHandler
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -21,7 +21,7 @@ BASE_URL = 'https://paper-api.alpaca.markets/v2'  # Use paper trading for testin
 api = REST(ALPACA_API_KEY, ALPACA_SECRET_KEY, BASE_URL, api_version='v2')
 
 # Telegram Bot Token
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 
 # Global variables
 model = None
