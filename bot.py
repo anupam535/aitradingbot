@@ -1,5 +1,6 @@
 import os  # For environment variables
 import telegram  # For Telegram bot
+import yfinance as yf
 from telegram import Update  # For Telegram updates
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes  # Telegram bot components
 from dotenv import load_dotenv  # For loading environment variables from .env file
