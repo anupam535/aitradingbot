@@ -183,17 +183,19 @@ def intraday_signals(update, context): # Existing single stock command
 
 # ... (run_bot function - add the new handler)
 def run_bot():
-    TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")  # Get token from environment
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Get token from environment
     if not TELEGRAM_BOT_TOKEN:
         print("TELEGRAM_BOT_TOKEN environment variable not set!")
         return  # Exit if token is missing
 
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))  # Replace "start" with your command names
-    application.add_handler(CommandHandler("analyze", analyze)) # Replace "analyze" with your command names
-    application.add_handler(CommandHandler("signals", signals)) # Replace "signals" with your command names
-    application.add_handler(CommandHandler("intraday_signals", intraday_signals)) # Replace "intraday_signals" with your command names
-    application.add_handler(CommandHandler("intraday_signals_all", intraday_signals_all)) # Replace "intraday_signals_all" with your command names
+
+    # Add command handlers
+    application.add_handler(CommandHandler("start", start))  
+    application.add_handler(CommandHandler("analyze", analyze))  
+    application.add_handler(CommandHandler("signals", signals))  
+    application.add_handler(CommandHandler("intraday_signals", intraday_signals))  
+    application.add_handler(CommandHandler("intraday_signals_all", intraday_signals_all))  
 
     application.run_polling()
     
