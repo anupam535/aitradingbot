@@ -81,8 +81,7 @@ def calculate_rsi(prices, window=14):
     data['SMA_5'] = data['Close'].rolling(window=5).mean()  # Shorter SMA
     data['SMA_15'] = data['Close'].rolling(window=15).mean() # Shorter SMA
     data['Volatility'] = data['Close'].rolling(window=10).std()
-    data['RSI'] = calculate_rsi(data['Close'], window=14)  # Add RSI
-
+    
     # Target Variable (Intraday - Example - short term price movement)
     data['Target'] = (data['Close'].shift(-1) > data['Close']).astype(int)  # Next bar close > current close
 
@@ -106,6 +105,10 @@ def calculate_rsi(prices, window=14):
     rsi = 100 - (100 / (1 + (ema_up / ema_down)))
     return rsi
 
+def create_features(data): # function where u are using it.
+  data["RSI"] = calculate_rsi(data["Close"],window=14)
+  return data
+    
 # Function to get intraday trading signals
 def get_intraday_signals(symbol, model):
     data = fetch_intraday_data(symbol, timeframe="1Min", limit=200) # Recent intraday data
@@ -116,8 +119,7 @@ def get_intraday_signals(symbol, model):
     data['SMA_5'] = data['Close'].rolling(window=5).mean()  # Shorter SMA
     data['SMA_15'] = data['Close'].rolling(window=15).mean() # Shorter SMA
     data['Volatility'] = data['Close'].rolling(window=10).std()
-    data['RSI'] = calculate_rsi(data['Close'], window=14)  # Use the manual function
-
+    
     data.dropna(inplace=True)
     X_recent = data[['SMA_5', 'SMA_15', 'Volatility','RSI']].tail(1)
 
