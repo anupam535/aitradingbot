@@ -5,6 +5,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 import telegram
 import time
+from telegram import Update, ForceReply
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
 # Alpaca API Credentials (REPLACE WITH YOUR KEYS)
 ALPACA_API_KEY = "PKT5UWN61WQH0D8UOYPS"
