@@ -181,7 +181,10 @@ def intraday_signals(update, context): # Existing single stock command
     signal_text += "Buy" if signal == 1 else "Sell/Hold"
     update.bot.send_message(chat_id=update.effective_chat.id, text=signal_text)
 
-# ... (run_bot function - add the new handler)
+# Define the start function BEFORE run_bot()
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Welcome to the AI Trading Bot! Use /analyze or /signals to get started.")
+
 def run_bot():
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Get token from environment
     if not TELEGRAM_BOT_TOKEN:
@@ -198,7 +201,6 @@ def run_bot():
     application.add_handler(CommandHandler("intraday_signals_all", intraday_signals_all))  
 
     application.run_polling()
-    
-if __name__ == '__main__':
-    run_bot()
 
+if __name__ == "__main__":
+    run_bot()
