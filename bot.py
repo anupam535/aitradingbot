@@ -8,8 +8,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-import threading
-import time
 import alpaca_trade_api as tradeapi
 
 # Load environment variables from .env file
@@ -25,7 +23,6 @@ ALPACA_BASE_URL = os.getenv('ALPACA_BASE_URL')
 STOCKS = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS",
     "HINDUNILVR.NS", "KOTAKBANK.NS", "BHARTIARTL.NS", "AXISBANK.NS", "BAJFINANCE.NS"
-    # Add more stocks here
 ]
 
 # Initialize Alpaca API
@@ -43,108 +40,93 @@ def fetch_stock_data(stock_symbol, period='1y'):
         print(f"Error fetching data for {stock_symbol}: {e}")
         return None
 
-# Function to train ML model
-def train_model(stock_data):
+# Function to calculate technical indicators
+def calculate_indicators(stock_data):
     try:
-        features = ['Open', 'High', 'Low', 'Close', 'Volume']
-        X = stock_data[features]
-        y = stock_data['Target']
+        # Moving Averages
+        stock_data['MA_5'] = stock_data['Close'].rolling(window=5).mean()
+        stock_data['MA_20'] = stock_data['Close'].rolling(window=20).mean()
 
-        # Split data into training and testing sets
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        # RSI (Relative Strength Index)
+        delta = stock_data['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        stock_data['RSI'] = 100 - (100 / (1 + rs))
 
-        # Train Random Forest Classifier
-        model = RandomForestClassifier(n_estimators=100, random_state=42)
-        model.fit(X_train, y_train)
+        # Bollinger Bands
+        stock_data['BB_Upper'] = stock_data['MA_20'] + 2 * stock_data['Close'].rolling(window=20).std()
+        stock_data['BB_Lower'] = stock_data['MA_20'] - 2 * stock_data['Close'].rolling(window=20).std()
 
-        # Evaluate model
-        predictions = model.predict(X_test)
-        accuracy = accuracy_score(y_test, predictions)
-        print(f"Model Accuracy: {accuracy * 100:.2f}%")
-        return model, accuracy
-    except Exception as e:
-        print(f"Error training model: {e}")
-        return None, 0
-
-# Function to generate buy/sell signals
-def generate_signals(model, stock_data):
-    try:
-        features = ['Open', 'High', 'Low', 'Close', 'Volume']
-        X = stock_data[features]
-        predictions = model.predict(X)
-        stock_data['Signal'] = predictions
+        stock_data.dropna(inplace=True)
         return stock_data
+    except Exception as e:
+        print(f"Error calculating indicators: {e}")
+        return None
+
+# Function to generate buy/sell/stop-loss points
+def generate_signals(stock_data):
+    try:
+        buy_points = []
+        sell_points = []
+        stop_loss_points = []
+
+        for i in range(1, len(stock_data)):
+            current_row = stock_data.iloc[i]
+            prev_row = stock_data.iloc[i - 1]
+
+            # Buy Signal: MA_5 crosses above MA_20 and RSI < 30
+            if (current_row['MA_5'] > current_row['MA_20']) and (prev_row['MA_5'] <= prev_row['MA_20']) and (current_row['RSI'] < 30):
+                buy_points.append(current_row['Close'])
+
+            # Sell Signal: MA_5 crosses below MA_20 or RSI > 70
+            if (current_row['MA_5'] < current_row['MA_20']) and (prev_row['MA_5'] >= prev_row['MA_20']) or (current_row['RSI'] > 70):
+                sell_points.append(current_row['Close'])
+
+            # Stop-Loss: Below BB_Lower
+            if current_row['Close'] < current_row['BB_Lower']:
+                stop_loss_points.append(current_row['Close'])
+
+        return {
+            'buy_points': buy_points,
+            'sell_points': sell_points,
+            'stop_loss_points': stop_loss_points
+        }
     except Exception as e:
         print(f"Error generating signals: {e}")
         return None
 
-# Function to execute trades via Alpaca API
-def execute_trades(signals):
-    try:
-        account = alpaca_api.get_account()
-        cash = float(account.cash)
-        portfolio_value = float(account.equity)
-
-        print(f"Available Cash: ${cash:.2f}, Portfolio Value: ${portfolio_value:.2f}")
-
-        for stock_symbol, signal in signals.items():
-            if signal == 1:  # Buy signal
-                stock_price = yf.Ticker(stock_symbol).history(period='1d')['Close'].iloc[-1]
-                qty = int(cash / stock_price)  # Calculate quantity based on available cash
-                if qty > 0:
-                    print(f"Buying {qty} shares of {stock_symbol} at ${stock_price:.2f}")
-                    alpaca_api.submit_order(
-                        symbol=stock_symbol,
-                        qty=qty,
-                        side='buy',
-                        type='market',
-                        time_in_force='gtc'
-                    )
-            elif signal == 0:  # Sell signal
-                position = alpaca_api.get_position(stock_symbol)
-                qty = int(position.qty)
-                if qty > 0:
-                    print(f"Selling {qty} shares of {stock_symbol}")
-                    alpaca_api.submit_order(
-                        symbol=stock_symbol,
-                        qty=qty,
-                        side='sell',
-                        type='market',
-                        time_in_force='gtc'
-                    )
-    except Exception as e:
-        print(f"Error executing trades: {e}")
-
 # Telegram Bot Commands
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Welcome to the AI-Powered Trading Bot! Use /analyze or /trade for actions.")
+    await update.message.reply_text("Welcome to the AI-Powered Trading Bot! Use /signals for buy/sell alerts.")
 
-async def analyze_market(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def get_signals(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Analyzing market... Please wait.")
     results = []
-    for stock_symbol in STOCKS:
-        stock_data = fetch_stock_data(stock_symbol)
-        if stock_data is not None:
-            model, accuracy = train_model(stock_data)
-            if model is not None:
-                signals = generate_signals(model, stock_data)
-                last_signal = signals['Signal'].iloc[-1]
-                action = "Buy" if last_signal == 1 else "Sell"
-                results.append(f"{stock_symbol}: {action} (Accuracy: {accuracy * 100:.2f}%)")
-    await update.message.reply_text("\n".join(results))
 
-async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Executing trades... Please wait.")
-    signals = {}
     for stock_symbol in STOCKS:
         stock_data = fetch_stock_data(stock_symbol)
         if stock_data is not None:
-            model, _ = train_model(stock_data)
-            if model is not None:
-                signals_df = generate_signals(model, stock_data)
-                signals[stock_symbol] = signals_df['Signal'].iloc[-1]
-    execute_trades(signals)
-    await update.message.reply_text("Trades executed successfully!")
+            stock_data = calculate_indicators(stock_data)
+            signals = generate_signals(stock_data)
+
+            if signals:
+                buy_points = signals['buy_points']
+                sell_points = signals['sell_points']
+                stop_loss_points = signals['stop_loss_points']
+
+                result = (
+                    f"{stock_symbol}:\n"
+                    f"Buy Points: {buy_points}\n"
+                    f"Sell Points: {sell_points}\n"
+                    f"Stop-Loss Points: {stop_loss_points}\n"
+                )
+                results.append(result)
+
+    if results:
+        await update.message.reply_text("\n".join(results))
+    else:
+        await update.message.reply_text("No signals found for today.")
 
 # Main Function
 def main():
@@ -153,8 +135,7 @@ def main():
 
     # Register Commands
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("analyze", analyze_market))
-    application.add_handler(CommandHandler("trade", trade))
+    application.add_handler(CommandHandler("signals", get_signals))
 
     # Start the Bot
     application.run_polling()
