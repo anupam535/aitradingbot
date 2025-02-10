@@ -131,6 +131,10 @@ def predict_long_term_returns(stock_symbol, periods=['3m', '6m', '1y', '5y']):
         print(f"Error predicting long-term returns for {stock_symbol}: {e}")
         return None
 
+# Error handler for Telegram
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(f"Update {update} caused error {context.error}")
+
 # Telegram Bot Commands
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Hello Mikey Sir, Welcome to the AI-Powered Trading Bot! Use /intraday for intraday signals and /longterm for long-term investment recommendations.")
@@ -190,6 +194,9 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("intraday", get_intraday_signals))
     application.add_handler(CommandHandler("longterm", get_long_term_recommendations))
+
+    # Register Error Handler
+    application.add_error_handler(error_handler)
 
     # Start the Bot
     application.run_polling()
