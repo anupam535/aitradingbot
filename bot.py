@@ -6,7 +6,7 @@ from dotenv import load_dotenv  # For loading environment variables from .env fi
 import alpaca_trade_api as tradeapi  # For Alpaca API
 import pandas as pd  # For data manipulation
 import numpy as np  # For numerical operations
-from talib import RSI  # For RSI calculation (install with: pip install TA-Lib)
+the calculate_rsi function.
 # ... other imports (if you have them)
 
 # --- 1. Load Environment Variables ---
