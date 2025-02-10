@@ -101,8 +101,8 @@ def calculate_rsi(prices, window=14):
     delta = prices.diff()
     up = delta.clip(lower=0)
     down = -1 * delta.clip(upper=0)
-    ema_up = up.rolling(window=window).mean()  # Using .mean() for simplicity
-    ema_down = down.rolling(window=window).mean()  # Using .mean() for simplicity
+    ema_up = up.rolling(window=window).mean()
+    ema_down = down.rolling(window=window).mean()
     rsi = 100 - (100 / (1 + (ema_up / ema_down)))
     return rsi
 
