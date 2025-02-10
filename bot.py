@@ -187,8 +187,33 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def analyze(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Analyzing the market... (This function needs implementation)")
+    symbol = context.args[0] if context.args else None  # Get stock symbol from user input
 
+    if not symbol:
+        await update.message.reply_text("Please provide a stock symbol. Example: /analyze TCS.NS")
+        return
+
+    await update.message.reply_text(f"Fetching data for {symbol}...")
+
+    try:
+        data = fetch_intraday_data(symbol)  # Get stock data
+        if data is None or data.empty:
+            await update.message.reply_text(f"Could not retrieve data for {symbol}.")
+            return
+
+        # Calculate some indicators
+        data["RSI"] = calculate_rsi(data["Close"])
+        latest_rsi = data["RSI"].iloc[-1]
+
+        # Generate basic signal
+        signal = "Buy" if latest_rsi < 30 else "Sell" if latest_rsi > 70 else "Hold"
+
+        await update.message.reply_text(
+            f"Stock: {symbol}\nLatest RSI: {latest_rsi:.2f}\nSignal: {signal}"
+        )
+
+    except Exception as e:
+        await update.message.reply_text(f"Error analyzing {symbol}: {str(e)}")
 
 async def signals(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Signals command is under development.")
