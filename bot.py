@@ -9,11 +9,31 @@ from tensorflow.keras.layers import LSTM, Dense, Input
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# ✅ Load Environment Variables (For API Keys)
-ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
-ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
+import os
+from dotenv import load_dotenv
+
+# ✅ Load environment variables from .env file
+load_dotenv()
+
+# ✅ Load Telegram Bot Token
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
+# ✅ Load Alpaca API Credentials
+ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
+ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
+ALPACA_BASE_URL = os.getenv("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")  # Default to Paper Trading
+
+# ✅ Debugging: Print only if necessary (REMOVE in production)
+print("Loaded Telegram Token:", bool(TELEGRAM_BOT_TOKEN))  # Will print True if loaded, False if not
+print("Loaded Alpaca API Key:", bool(ALPACA_API_KEY))
+print("Loaded Alpaca Secret Key:", bool(ALPACA_SECRET_KEY))
+print("Alpaca Base URL:", ALPACA_BASE_URL)
+
+# ✅ Raise an error if any critical environment variable is missing
+if not TELEGRAM_BOT_TOKEN:
+    raise ValueError("⚠️ TELEGRAM_BOT_TOKEN is missing in .env file!")
+if not ALPACA_API_KEY or not ALPACA_SECRET_KEY:
+    raise ValueError("⚠️ Alpaca API Key or Secret Key is missing in .env file!")
 # ✅ Logging for Debugging
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
