@@ -16,7 +16,7 @@ load_dotenv()  # Loads the .env file (if it's in the same directory)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Get Telegram token
 ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")  # Get Alpaca API key
 ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")  # Get Alpaca secret key
-
+ALPACA_BASE_URL = "https://paper-api.alpaca.markets"  # Add this line
 # --- 3. Error Handling (Check if variables are set) ---
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
