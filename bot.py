@@ -46,16 +46,6 @@ STOCK_SYMBOLS_INTRADAY = [
     "BEL.NS", "GAIL.NS", "MGL.NS", "PIIND.NS", "SRTRANSFIN.NS", "CHOLAFIN.NS",
     "LTI.NS", "HDFCLIFE.NS", "SBILIFE.NS", "ICICIPRMF.NS"  # Added More
 ]
-# --- 6. Data Fetching Function (Example) ---
-def fetch_intraday_data(symbol, timeframe="1Min", limit=200):
-    try:
-        barset = api.get_barset(symbol, timeframe, limit=limit)
-        df = barset.df.copy()  # Create a copy to avoid SettingWithCopyWarning
-        df = df.reset_index().rename(columns={'time': 'Date'}).set_index('Date')
-        return df
-    except Exception as e:
-        print(f"Error fetching intraday data for {symbol}: {e}")
-        return None
 
 # Initialize Alpaca API
 api = tradeapi.REST(ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_BASE_URL)
