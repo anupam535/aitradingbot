@@ -1,117 +1,200 @@
-import os
-import numpy as np
+import alpaca_trade_api as tradeapi
 import pandas as pd
-import yfinance as yf
-import logging
-import asyncio
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Input
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+import telegram
+import time
 
-import os
-from dotenv import load_dotenv
+# Alpaca API Credentials (REPLACE WITH YOUR KEYS)
+ALPACA_API_KEY = "PKT5UWN61WQH0D8UOYPS"
+ALPACA_SECRET_KEY = "VpvTIZXUDEBhdeIpmL6ubQFMWO48thNRSabb9tmp"
+ALPACA_BASE_URL = "https://paper-api.alpaca.markets"  # Use paper trading!
 
-# ✅ Load environment variables from .env file
-load_dotenv()
+# Telegram Bot API Token (REPLACE WITH YOUR TOKEN)
+TELEGRAM_BOT_TOKEN = "6198191947:AAHnUnTQU3BDWoG6Qr5vTerqMXhQdvbvQyM"
+bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
 
-# ✅ Load Telegram Bot Token
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# ✅ Load Alpaca API Credentials
-ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
-ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
-ALPACA_BASE_URL = os.getenv("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")  # Default to Paper Trading
+# Stock Symbols (Indian Stocks - Up to 50+ for intraday)
+STOCK_SYMBOLS_INTRADAY = [
+    "TCS.NS", "INFY.NS", "RELIANCE.NS", "HDFCBANK.NS", "ICICIBANK.NS",
+    "SBIN.NS", "HDFC.NS", "BAJFINANCE.NS", "KOTAKBANK.NS", "ADANIENT.NS",
+    "LT.NS", "ASIANPAINT.NS", "AXISBANK.NS", "MARUTI.NS", "ITC.NS",
+    "HCLTECH.NS", "WIPRO.NS", "NESTLEIND.NS", "TITAN.NS", "BAJAJAUTO.NS",
+    "ULTRACEMCO.NS", "TECHM.NS", "M&M.NS", "SUNPHARMA.NS", "CIPLA.NS",
+    "POWERGRID.NS", "NTPC.NS", "JSWSTEEL.NS", "BHARTIARTL.NS", "GRASIM.NS",
+    "ONGC.NS", "TATAMOTORS.NS", "UPL.NS", "APOLLOHOSP.NS", "INDUSINDBK.NS",
+    "BPCL.NS", "IOC.NS", "HINDALCO.NS", "COALINDIA.NS", "TATAPOWER.NS",
+    "ADANIPORTS.NS", "JSWENERGY.NS", "PIDILITIND.NS", "SRF.NS", "DIVISLAB.NS",
+    "LUPIN.NS", "DRREDDY.NS", "PEL.NS", "DLF.NS", "GODREJCP.NS",
+    "HEROMOTOCO.NS", "EICHERMOT.NS", "MRF.NS", "AMBUJACEM.NS", "ACC.NS",
+    "SHREECEM.NS", "BERGEPAINT.NS", "CROMPTON.NS", "POLYCAB.NS", "HAL.NS",
+    "BEL.NS", "GAIL.NS", "MGL.NS", "PIIND.NS", "SRTRANSFIN.NS", "CHOLAFIN.NS",
+    "LTI.NS", "HDFCLIFE.NS", "SBILIFE.NS", "ICICIPRMF.NS"  # Added More
+]
 
-# ✅ Debugging: Print only if necessary (REMOVE in production)
-print("Loaded Telegram Token:", bool(TELEGRAM_BOT_TOKEN))  # Will print True if loaded, False if not
-print("Loaded Alpaca API Key:", bool(ALPACA_API_KEY))
-print("Loaded Alpaca Secret Key:", bool(ALPACA_SECRET_KEY))
-print("Alpaca Base URL:", ALPACA_BASE_URL)
 
-# ✅ Raise an error if any critical environment variable is missing
-if not TELEGRAM_BOT_TOKEN:
-    raise ValueError("⚠️ TELEGRAM_BOT_TOKEN is missing in .env file!")
-if not ALPACA_API_KEY or not ALPACA_SECRET_KEY:
-    raise ValueError("⚠️ Alpaca API Key or Secret Key is missing in .env file!")
-# ✅ Logging for Debugging
-logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+# Initialize Alpaca API
+api = tradeapi.REST(ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_BASE_URL)
 
-# ✅ Define Stock Symbols (Indian + US)
-STOCKS = ["HDFC.NS", "TCS.NS", "INFY.NS", "RELIANCE.NS", "TSLA", "AAPL", "GOOGL"]
-
-# ✅ LSTM Model for Predicting Stock Trends
-def create_model():
-    model = Sequential([
-        Input(shape=(60, 1)),  # Fix TensorFlow warning
-        LSTM(50, activation="relu", return_sequences=True),
-        LSTM(50, activation="relu"),
-        Dense(25),
-        Dense(1)
-    ])
-    model.compile(optimizer="adam", loss="mean_squared_error")
-    return model
-
-# ✅ Fetch Stock Data (Fix Yahoo Finance Errors)
-def fetch_stock_data(symbol, period="60d"):
+# Function to fetch historical data from Alpaca (for intraday)
+def fetch_intraday_data(symbol, timeframe="1Min", limit=200): # Increased Limit for Intraday
     try:
-        stock = yf.Ticker(symbol)
-        df = stock.history(period=period)
-
-        if df.empty:
-            logging.warning(f"No data found for {symbol}. Check if it's listed on Yahoo Finance.")
-            return None
-
-        df = df[['Close']]  # Fix Column Name Issue
-        df = df.dropna()
+        barset = api.get_barset(symbol, timeframe, limit=limit)
+        df = barset.df
+        df = df.reset_index()
+        df = df.rename(columns={'time': 'Date'})
+        df = df.set_index('Date')
         return df
     except Exception as e:
-        logging.error(f"Error fetching data for {symbol}: {e}")
+        print(f"Error fetching intraday data for {symbol}: {e}")
         return None
 
-# ✅ Predict Stock Trend
-def predict_stock(symbol):
-    df = fetch_stock_data(symbol)
+# Function to train the model (for intraday - adapt features)
+def train_intraday_model(data):
+    if data is None or data.empty:
+        return None
 
-    if df is None or df.empty:
-        return f"⚠️ No data found for {symbol}."
+    # Feature Engineering (Intraday - Examples)
+    data['SMA_5'] = data['Close'].rolling(window=5).mean()  # Shorter SMA
+    data['SMA_15'] = data['Close'].rolling(window=15).mean() # Shorter SMA
+    data['Volatility'] = data['Close'].rolling(window=10).std()
+    data['RSI'] = calculate_rsi(data['Close'], window=14)  # Add RSI
 
-    model = create_model()
-    data = df['Close'].values.reshape(-1, 1)
-    data = np.reshape(data, (data.shape[0], 1, 1))  # Fix TensorFlow input
+    # Target Variable (Intraday - Example - short term price movement)
+    data['Target'] = (data['Close'].shift(-1) > data['Close']).astype(int)  # Next bar close > current close
 
-    prediction = model.predict(data[-60:].reshape(1, 60, 1))[0][0]
-    latest_price = df['Close'].iloc[-1]
+    data.dropna(inplace=True)
+    X = data[['SMA_5', 'SMA_15', 'Volatility','RSI']]  # Intraday Features
+    y = data['Target']
 
-    signal = "📈 BUY" if prediction > latest_price else "📉 SELL"
-    return f"{symbol} Prediction: {prediction:.2f} ({signal})"
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# ✅ Telegram Bot Setup
-app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    model = RandomForestClassifier(n_estimators=100, random_state=42)  # Or another suitable model
+    model.fit(X_train, y_train)
+    return model
 
-# ✅ Command: /start
-async def start(update: Update, context):
-    await update.message.reply_text("Hello! I am your AI Trading Bot. Use /predict <symbol>.")
+# Function to calculate RSI (Relative Strength Index)
+def calculate_rsi(prices, window=14):
+    delta = prices.diff()
+    up = delta.clip(lower=0)
+    down = -1 * delta.clip(upper=0)
+    ema_up = up.rolling(window=window).mean()
+    ema_down = down.rolling(window=window).mean()
+    rsi = 100 - (100 / (1 + (ema_up / ema_down)))
+    return rsi
 
-# ✅ Command: /predict <symbol>
-async def predict(update: Update, context):
-    if len(context.args) == 0:
-        await update.message.reply_text("❌ Please provide a stock symbol. Example: /predict HDFC.NS")
+# Function to get intraday trading signals
+def get_intraday_signals(symbol, model):
+    data = fetch_intraday_data(symbol, timeframe="1Min", limit=200) # Recent intraday data
+    if data is None or data.empty or model is None:
+        return None
+
+    # ... (Feature engineering same as in train_intraday_model)
+    data['SMA_5'] = data['Close'].rolling(window=5).mean()  # Shorter SMA
+    data['SMA_15'] = data['Close'].rolling(window=15).mean() # Shorter SMA
+    data['Volatility'] = data['Close'].rolling(window=10).std()
+    data['RSI'] = calculate_rsi(data['Close'], window=14)  # Add RSI
+
+    data.dropna(inplace=True)
+    X_recent = data[['SMA_5', 'SMA_15', 'Volatility','RSI']].tail(1)
+
+    if X_recent.empty:
+        return None
+
+    prediction = model.predict(X_recent)[0]
+    return prediction
+
+# Telegram Bot Handlers (modified for multiple stocks)
+
+def intraday_signals_all(update, context): # New command
+    for symbol in STOCK_SYMBOLS_INTRADAY:  # Loop through stocks
+        try:
+            data = fetch_intraday_data(symbol)
+            if data is None or data.empty:
+                bot.send_message(chat_id=update.effective_chat.id, text=f"Could not retrieve intraday data for {symbol}.")
+                continue # Go to the next stock
+
+            model = train_intraday_model(data)
+            if model is None:
+                bot.send_message(chat_id=update.effective_chat.id, text=f"Could not train intraday model for {symbol}.")
+                continue
+
+            signal = get_intraday_signals(symbol, model)
+            if signal is None:
+                bot.send_message(chat_id=update.effective_chat.id, text=f"Could not generate intraday signal for {symbol}.")
+                continue
+
+            signal_text = f"Intraday Signal for {symbol}: "
+            signal_text += "Buy" if signal == 1 else "Sell/Hold"
+            bot.send_message(chat_id=update.effective_chat.id, text=signal_text)
+
+        except Exception as e: # Catch any errors during processing
+            bot.send_message(chat_id=update.effective_chat.id, text=f"Error processing {symbol}: {e}")
+
+
+def intraday_signals(update, context): # Existing single stock command
+    symbol = context.args[0] if context.args else None
+    if not symbol:
+        update.bot.send_message(chat_id=update.effective_chat.id, text="Please provide a stock symbol (e.g., /intraday_signals TCS.NS)")
+        return
+    data = fetch_intraday_data(symbol)
+    if data is None or data.empty:
+        update.bot.send_message(chat_id=update.effective_chat.id, text=f"Could not retrieve intraday data for {symbol}.")
         return
 
-    symbol = context.args[0].upper()
-    if symbol not in STOCKS:
-        await update.message.reply_text("⚠️ Invalid symbol. Try: HDFC.NS, TCS.NS, TSLA, AAPL, etc.")
+    model = train_intraday_model(data)
+    if model is None:
+        update.bot.send_message(chat_id=update.effective_chat.id, text=f"Could not train intraday model for {symbol}.")
         return
 
-    result = predict_stock(symbol)
-    await update.message.reply_text(result)
+    signal = get_intraday_signals(symbol, model)
+    if signal is None:
+        update.bot.send_message(chat_id=update.effective_chat.id, text=f"Could not generate intraday signal for {symbol}.")
+        return
 
-# ✅ Add Handlers
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("predict", predict))
+    signal_text = f"Intraday Signal for {symbol}: "
+    signal_text += "Buy" if signal == 1 else "Sell/Hold"
+    update.bot.send_message(chat_id=update.effective_chat.id, text=signal_text)
 
-# ✅ Run Telegram Bot
-if __name__ == "__main__":
-    logging.info("✅ AI Trading Bot is running...")
-    app.run_polling()
+# ... (run_bot function - add the new handler)
+def run_bot():
+  # ... other handlers
+    intraday_signals_handler = telegram.ext.CommandHandler('intraday_signals', intraday_signals)
+    dispatcher.add_handler(intraday_signals_handler)
+
+    intraday_signals_all_handler = telegram.ext.CommandHandler('intraday_signals_all', intraday_signals_all) # New handler
+    dispatcher.add_handler(intraday_signals_all_handler)
+
+def run_bot():
+    updater = telegram.ext.Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
+    dispatcher = updater.dispatcher
+
+    # Start command handler
+    start_handler = telegram.ext.CommandHandler('start', start)  # If you have a start command
+    dispatcher.add_handler(start_handler)
+
+    # Analyze command handler (if you have it)
+    analyze_handler = telegram.ext.CommandHandler('analyze', analyze) # If you have an analyze command
+    dispatcher.add_handler(analyze_handler)
+
+    # Signals command handler (if you have it)
+    signals_handler = telegram.ext.CommandHandler('signals', signals) # If you have a signals command
+    dispatcher.add_handler(signals_handler)
+
+    # Intraday signals (single stock)
+    intraday_signals_handler = telegram.ext.CommandHandler('intraday_signals', intraday_signals)
+    dispatcher.add_handler(intraday_signals_handler)
+
+    # Intraday signals (all stocks)
+    intraday_signals_all_handler = telegram.ext.CommandHandler('intraday_signals_all', intraday_signals_all)
+    dispatcher.add_handler(intraday_signals_all_handler)
+
+
+    updater.start_polling()  # Start the bot
+    updater.idle()  # Keep the bot running
+
+if __name__ == '__main__':
+    run_bot()
+
