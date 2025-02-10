@@ -15,7 +15,7 @@ load_dotenv()
 # Alpaca API configuration
 ALPACA_API_KEY = os.getenv('ALPACA_API_KEY')
 ALPACA_SECRET_KEY = os.getenv('ALPACA_SECRET_KEY')
-BASE_URL = 'https://paper-api.alpaca.markets/v2'  # Use paper trading for testing
+BASE_URL = 'https://paper-api.alpaca.markets'  # Use paper trading for testing
 
 api = REST(ALPACA_API_KEY, ALPACA_SECRET_KEY, BASE_URL, api_version='v2')
 
@@ -31,7 +31,12 @@ high_profit_stocks = []
 # Function to fetch historical data from Alpaca API
 def get_historical_data(symbol, timeframe='1Day', limit=100):
     try:
+        # Fetch raw data from Alpaca API
         barset = api.get_bars(symbol, timeframe, limit=limit).df
+
+        # Flatten the MultiIndex columns into a single-level index
+        barset.columns = [col[1] if col[1] != '' else col[0] for col in barset.columns]
+
         return barset
     except Exception as e:
         print(f"Error fetching data for {symbol}: {e}")
@@ -108,7 +113,9 @@ def find_high_profit_stocks():
 
 # Telegram command handlers
 async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text("Hello Master, Welcome to the AI Trading Bot! Use /stock or /crypto to analyze markets.")
+    await update.message.reply_text("Hello Master Welcome to the AI Trading Bot! Use /stock or /crypto to analyze markets.")
+
+# ... (rest of the script remains unchanged)
 
 async def stock_analysis(update: Update, context: CallbackContext):
     if update.message.from_user.id != ADMIN_ID:
