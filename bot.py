@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 import alpaca_trade_api as tradeapi
@@ -22,16 +21,7 @@ ALPACA_BASE_URL = os.getenv('ALPACA_BASE_URL')
 # List of Indian stocks (NSE symbols)
 STOCKS = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS",
-    "HINDUNILVR.NS", "KOTAKBANK.NS", "BHARTIARTL.NS", "AXISBANK.NS", "BAJFINANCE.NS",
-    "LT.NS", "ITC.NS", "SBIN.NS", "ASIANPAINT.NS", "HCLTECH.NS",
-    "WIPRO.NS", "MARUTI.NS", "ULTRACEMCO.NS", "TITAN.NS", "ADANIENT.NS",
-    "ONGC.NS", "NTPC.NS", "POWERGRID.NS", "BPCL.NS", "IOC.NS",
-    "JSWSTEEL.NS", "COALINDIA.NS", "TATASTEEL.NS", "GRASIM.NS", "BAJAJFINSV.NS",
-    "BRITANNIA.NS", "DIVISLAB.NS", "SHREECEM.NS", "HEROMOTOCO.NS", "UPL.NS",
-    "NESTLEIND.NS", "CIPLA.NS", "DRREDDY.NS", "EICHERMOT.NS", "TECHM.NS",
-    "ADANIPORTS.NS", "HDFCLIFE.NS", "SBILIFE.NS", "INDUSINDBK.NS", "M&M.NS",
-    "APOLLOHOSP.NS", "TATAMOTORS.NS", "PIDILITIND.NS", "HDFCAMC.NS", "BANDHANBNK.NS",
-    "AUROPHARMA.NS", "DLF.NS", "BERGEPAINT.NS", "GAIL.NS", "AMBUJACEM.NS"
+    "HINDUNILVR.NS", "KOTAKBANK.NS", "BHARTIARTL.NS", "AXISBANK.NS", "BAJFINANCE.NS"
 ]
 
 # Initialize Alpaca API
@@ -78,8 +68,8 @@ def calculate_indicators(stock_data):
         print(f"Error calculating indicators: {e}")
         return None
 
-# Function to generate short-term signals
-def generate_short_term_signals(stock_data):
+# Function to generate intraday buy/sell/stop-loss signals
+def generate_intraday_signals(stock_data):
     try:
         buy_points = []
         sell_points = []
@@ -107,7 +97,7 @@ def generate_short_term_signals(stock_data):
             'stop_loss_points': stop_loss_points
         }
     except Exception as e:
-        print(f"Error generating short-term signals: {e}")
+        print(f"Error generating intraday signals: {e}")
         return None
 
 # Function to predict long-term returns
@@ -121,7 +111,7 @@ def predict_long_term_returns(stock_symbol, periods=['3m', '6m', '1y', '5y']):
                 X = stock_data[features]
                 y = stock_data['Close'].shift(-1)  # Predict next day's close
                 X = X[:-1]  # Remove last row (no target value)
-                y = y[:-1]
+                y = y[:-1].values.ravel()  # Ensure y is a 1D array
 
                 # Train-test split
                 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -134,7 +124,7 @@ def predict_long_term_returns(stock_symbol, periods=['3m', '6m', '1y', '5y']):
                 future_price = model.predict([X.iloc[-1]])[0]
                 current_price = stock_data['Close'].iloc[-1]
                 expected_return = (future_price - current_price) / current_price * 100
-                results[period] = expected_return
+                results[period] = expected_return  # Store scalar value
 
         return results
     except Exception as e:
@@ -143,18 +133,18 @@ def predict_long_term_returns(stock_symbol, periods=['3m', '6m', '1y', '5y']):
 
 # Telegram Bot Commands
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hello Mikey Sir, welcome to the AI-Powered Trading Bot! Use /shortterm for intraday signals and /longterm for long-term investment recommendations.")
+    await update.message.reply_text("Hello Mikey Sir, Welcome to the AI-Powered Trading Bot! Use /intraday for intraday signals and /longterm for long-term investment recommendations.")
 
-async def get_short_term_signals(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Analyzing market for short-term signals... Please wait.")
+async def get_intraday_signals(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Analyzing market for intraday signals... Please wait.")
     results = []
 
     for stock_symbol in STOCKS:
-        stock_data = fetch_stock_data(stock_symbol)
+        stock_data = fetch_stock_data(stock_symbol, period='1mo')  # Use 1 month of data for intraday
         if stock_data is not None:
             stock_data = calculate_indicators(stock_data)
             if stock_data is not None:
-                signals = generate_short_term_signals(stock_data)
+                signals = generate_intraday_signals(stock_data)
 
                 if signals:
                     buy_points = signals['buy_points']
@@ -172,7 +162,7 @@ async def get_short_term_signals(update: Update, context: ContextTypes.DEFAULT_T
     if results:
         await update.message.reply_text("\n".join(results))
     else:
-        await update.message.reply_text("No short-term signals found for today.")
+        await update.message.reply_text("No intraday signals found for today.")
 
 async def get_long_term_recommendations(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Analyzing market for long-term investment opportunities... Please wait.")
@@ -198,7 +188,7 @@ def main():
 
     # Register Commands
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("shortterm", get_short_term_signals))
+    application.add_handler(CommandHandler("intraday", get_intraday_signals))
     application.add_handler(CommandHandler("longterm", get_long_term_recommendations))
 
     # Start the Bot
