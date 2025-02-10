@@ -1,22 +1,32 @@
-import alpaca_trade_api as tradeapi
-import pandas as pd
-import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-import telegram
-import time
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-import os
+import os  # For environment variables
+import telegram  # For Telegram bot
+from telegram import Update  # For Telegram updates
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes  # Telegram bot components
+from dotenv import load_dotenv  # For loading environment variables from .env file
+import alpaca_trade_api as tradeapi  # For Alpaca API
+import pandas as pd  # For data manipulation
+import numpy as np  # For numerical operations
+from talib import RSI  # For RSI calculation (install with: pip install TA-Lib)
+# ... other imports (if you have them)
 
-# Alpaca API Credentials (REPLACE WITH YOUR KEYS)
-ALPACA_API_KEY = "PKT5UWN61WQH0D8UOYPS"
-ALPACA_SECRET_KEY = "VpvTIZXUDEBhdeIpmL6ubQFMWO48thNRSabb9tmp"
-ALPACA_BASE_URL = "https://paper-api.alpaca.markets"  # Use paper trading!
+# --- 1. Load Environment Variables ---
+load_dotenv()  # Loads the .env file (if it's in the same directory)
 
-# Telegram Bot API Token (REPLACE WITH YOUR TOKEN)
-TELEGRAM_BOT_TOKEN = "6198191947:AAHnUnTQU3BDWoG6Qr5vTerqMXhQdvbvQyM"
-bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
+# --- 2. Get API Tokens and Keys from Environment Variables ---
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Get Telegram token
+ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")  # Get Alpaca API key
+ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")  # Get Alpaca secret key
+
+# --- 3. Error Handling (Check if variables are set) ---
+if not TELEGRAM_BOT_TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
+if not ALPACA_API_KEY:
+    raise ValueError("ALPACA_API_KEY environment variable not set!")
+if not ALPACA_SECRET_KEY:
+    raise ValueError("ALPACA_SECRET_KEY environment variable not set!")
+
+# --- 4. Alpaca API Initialization (after checks) ---
+api = tradeapi.REST(ALPACA_API_KEY, ALPACA_SECRET_KEY, "https://paper-api.alpaca.markets")  # Or your base URL
 
 
 # Stock Symbols (Indian Stocks - Up to 50+ for intraday)
@@ -36,7 +46,16 @@ STOCK_SYMBOLS_INTRADAY = [
     "BEL.NS", "GAIL.NS", "MGL.NS", "PIIND.NS", "SRTRANSFIN.NS", "CHOLAFIN.NS",
     "LTI.NS", "HDFCLIFE.NS", "SBILIFE.NS", "ICICIPRMF.NS"  # Added More
 ]
-
+# --- 6. Data Fetching Function (Example) ---
+def fetch_intraday_data(symbol, timeframe="1Min", limit=200):
+    try:
+        barset = api.get_barset(symbol, timeframe, limit=limit)
+        df = barset.df.copy()  # Create a copy to avoid SettingWithCopyWarning
+        df = df.reset_index().rename(columns={'time': 'Date'}).set_index('Date')
+        return df
+    except Exception as e:
+        print(f"Error fetching intraday data for {symbol}: {e}")
+        return None
 
 # Initialize Alpaca API
 api = tradeapi.REST(ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_BASE_URL)
