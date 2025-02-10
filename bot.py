@@ -7,7 +7,7 @@ import asyncio
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Input
 from telegram import Update
-from telegram.ext import Application, CommandHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # ✅ Load Environment Variables (For API Keys)
 ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
@@ -67,7 +67,7 @@ def predict_stock(symbol):
     return f"{symbol} Prediction: {prediction:.2f} ({signal})"
 
 # ✅ Telegram Bot Setup
-app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
 # ✅ Command: /start
 async def start(update: Update, context):
