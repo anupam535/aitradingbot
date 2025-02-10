@@ -6,8 +6,8 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
-import telegram
-from telegram.ext import Updater, CommandHandler
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 import threading
 import time
 import alpaca_trade_api as tradeapi
@@ -116,11 +116,11 @@ def execute_trades(signals):
         print(f"Error executing trades: {e}")
 
 # Telegram Bot Commands
-def start(update, context):
-    update.message.reply_text("Welcome to the AI-Powered Trading Bot! Use /analyze or /trade for actions.")
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Welcome to the AI-Powered Trading Bot! Use /analyze or /trade for actions.")
 
-def analyze_market(update, context):
-    update.message.reply_text("Analyzing market... Please wait.")
+async def analyze_market(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Analyzing market... Please wait.")
     results = []
     for stock_symbol in STOCKS:
         stock_data = fetch_stock_data(stock_symbol)
@@ -131,10 +131,10 @@ def analyze_market(update, context):
                 last_signal = signals['Signal'].iloc[-1]
                 action = "Buy" if last_signal == 1 else "Sell"
                 results.append(f"{stock_symbol}: {action} (Accuracy: {accuracy * 100:.2f}%)")
-    update.message.reply_text("\n".join(results))
+    await update.message.reply_text("\n".join(results))
 
-def trade(update, context):
-    update.message.reply_text("Executing trades... Please wait.")
+async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Executing trades... Please wait.")
     signals = {}
     for stock_symbol in STOCKS:
         stock_data = fetch_stock_data(stock_symbol)
@@ -144,22 +144,20 @@ def trade(update, context):
                 signals_df = generate_signals(model, stock_data)
                 signals[stock_symbol] = signals_df['Signal'].iloc[-1]
     execute_trades(signals)
-    update.message.reply_text("Trades executed successfully!")
+    await update.message.reply_text("Trades executed successfully!")
 
 # Main Function
 def main():
-    # Initialize Telegram Bot
-    updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
+    # Create the Application
+    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
     # Register Commands
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("analyze", analyze_market))
-    dp.add_handler(CommandHandler("trade", trade))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("analyze", analyze_market))
+    application.add_handler(CommandHandler("trade", trade))
 
-    # Start Telegram Bot
-    updater.start_polling()
-    updater.idle()
+    # Start the Bot
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
