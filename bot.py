@@ -7,14 +7,7 @@ from sklearn.model_selection import train_test_split
 from alpaca_trade_api.rest import REST
 from alpaca_trade_api.stream import Stream
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    CallbackContext,
-    MessageHandler,
-    filters,
-    CallbackQueryHandler  # Added this import
-)
+from telegram.ext import Application, CommandHandler, CallbackContext, MessageHandler, filters
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -23,13 +16,12 @@ load_dotenv()
 # Alpaca API configuration
 ALPACA_API_KEY = os.getenv('ALPACA_API_KEY')
 ALPACA_SECRET_KEY = os.getenv('ALPACA_SECRET_KEY')
-BASE_URL = 'https://paper-api.alpaca.markets'  # Use paper trading for testing
+BASE_URL = 'https://paper-api.alpaca.markets/v2'  # Use paper trading for testing
 
 api = REST(ALPACA_API_KEY, ALPACA_SECRET_KEY, BASE_URL, api_version='v2')
 
 # Telegram Bot Token
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-ADMIN_ID = int(os.getenv('ADMIN_ID'))  # Replace with your Telegram user ID
 
 # Global variables
 model = None
@@ -121,9 +113,6 @@ async def start(update: Update, context: CallbackContext):
     await update.message.reply_text("Welcome to the AI Trading Bot! Use /stock or /crypto to analyze markets.")
 
 async def stock_analysis(update: Update, context: CallbackContext):
-    if update.message.from_user.id != ADMIN_ID:
-        await update.message.reply_text("You do not have permission to use this command.")
-        return
     symbol = 'AAPL'  # Example stock
     data = get_historical_data(symbol)
     if data is not None:
@@ -133,9 +122,6 @@ async def stock_analysis(update: Update, context: CallbackContext):
         await update.message.reply_text("Failed to fetch stock data.")
 
 async def crypto_analysis(update: Update, context: CallbackContext):
-    if update.message.from_user.id != ADMIN_ID:
-        await update.message.reply_text("You do not have permission to use this command.")
-        return
     symbol = 'BTCUSD'  # Example crypto
     data = get_historical_data(symbol)
     if data is not None:
@@ -145,9 +131,6 @@ async def crypto_analysis(update: Update, context: CallbackContext):
         await update.message.reply_text("Failed to fetch crypto data.")
 
 async def trading_signal(update: Update, context: CallbackContext):
-    if update.message.from_user.id != ADMIN_ID:
-        await update.message.reply_text("You do not have permission to use this command.")
-        return
     symbol = 'AAPL'  # Example asset
     data = get_historical_data(symbol)
     if data is not None:
@@ -157,9 +140,6 @@ async def trading_signal(update: Update, context: CallbackContext):
         await update.message.reply_text("Failed to generate trading signal.")
 
 async def high_profit_stocks_command(update: Update, context: CallbackContext):
-    if update.message.from_user.id != ADMIN_ID:
-        await update.message.reply_text("You do not have permission to use this command.")
-        return
     if not high_profit_stocks:
         find_high_profit_stocks()
     if high_profit_stocks:
@@ -172,9 +152,6 @@ async def high_profit_stocks_command(update: Update, context: CallbackContext):
 
 async def toggle_alerts(update: Update, context: CallbackContext):
     global alerts_enabled
-    if update.message.from_user.id != ADMIN_ID:
-        await update.message.reply_text("You do not have permission to use this command.")
-        return
     alerts_enabled = not alerts_enabled
     status = "enabled" if alerts_enabled else "disabled"
     await update.message.reply_text(f"Real-time alerts are now {status}.")
@@ -204,10 +181,9 @@ async def stock_info(update: Update, context: CallbackContext):
     else:
         await query.edit_message_text(f"Failed to fetch stock data for {symbol}.")
 
-# Initialize Telegram bot
+# Add command handlers
 application = Application.builder().token(TELEGRAM_TOKEN).build()
 
-# Add command handlers
 application.add_handler(CommandHandler('start', start))
 application.add_handler(CommandHandler('stock', stock_analysis))
 application.add_handler(CommandHandler('crypto', crypto_analysis))
@@ -221,7 +197,7 @@ keyboard = [[InlineKeyboardButton(symbol, callback_data=symbol)] for symbol in s
 reply_markup = InlineKeyboardMarkup(keyboard)
 
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda update, context: update.message.reply_text("Please use the available commands.", reply_markup=reply_markup)))
-application.add_handler(CallbackQueryHandler(stock_info))  # Correctly added here
+application.add_handler(CallbackQueryHandler(stock_info))
 
 # Train the model at startup
 train_model()
