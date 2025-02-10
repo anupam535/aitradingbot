@@ -5,8 +5,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 import telegram
 import time
-from telegram import Update, ForceReply
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import os
 
 # Alpaca API Credentials (REPLACE WITH YOUR KEYS)
 ALPACA_API_KEY = "PKT5UWN61WQH0D8UOYPS"
@@ -162,41 +163,20 @@ def intraday_signals(update, context): # Existing single stock command
 
 # ... (run_bot function - add the new handler)
 def run_bot():
-  # ... other handlers
-    intraday_signals_handler = telegram.ext.CommandHandler('intraday_signals', intraday_signals)
-    dispatcher.add_handler(intraday_signals_handler)
+    TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")  # Get token from environment
+    if not TELEGRAM_BOT_TOKEN:
+        print("TELEGRAM_BOT_TOKEN environment variable not set!")
+        return  # Exit if token is missing
 
-    intraday_signals_all_handler = telegram.ext.CommandHandler('intraday_signals_all', intraday_signals_all) # New handler
-    dispatcher.add_handler(intraday_signals_all_handler)
+    application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", start))  # Replace "start" with your command names
+    application.add_handler(CommandHandler("analyze", analyze)) # Replace "analyze" with your command names
+    application.add_handler(CommandHandler("signals", signals)) # Replace "signals" with your command names
+    application.add_handler(CommandHandler("intraday_signals", intraday_signals)) # Replace "intraday_signals" with your command names
+    application.add_handler(CommandHandler("intraday_signals_all", intraday_signals_all)) # Replace "intraday_signals_all" with your command names
 
-def run_bot():
-    updater = telegram.ext.Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
-    dispatcher = updater.dispatcher
-
-    # Start command handler
-    start_handler = telegram.ext.CommandHandler('start', start)  # If you have a start command
-    dispatcher.add_handler(start_handler)
-
-    # Analyze command handler (if you have it)
-    analyze_handler = telegram.ext.CommandHandler('analyze', analyze) # If you have an analyze command
-    dispatcher.add_handler(analyze_handler)
-
-    # Signals command handler (if you have it)
-    signals_handler = telegram.ext.CommandHandler('signals', signals) # If you have a signals command
-    dispatcher.add_handler(signals_handler)
-
-    # Intraday signals (single stock)
-    intraday_signals_handler = telegram.ext.CommandHandler('intraday_signals', intraday_signals)
-    dispatcher.add_handler(intraday_signals_handler)
-
-    # Intraday signals (all stocks)
-    intraday_signals_all_handler = telegram.ext.CommandHandler('intraday_signals_all', intraday_signals_all)
-    dispatcher.add_handler(intraday_signals_all_handler)
-
-
-    updater.start_polling()  # Start the bot
-    updater.idle()  # Keep the bot running
-
+    application.run_polling()
+    
 if __name__ == '__main__':
     run_bot()
 
