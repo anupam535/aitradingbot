@@ -3,9 +3,6 @@ from dotenv import load_dotenv
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 import alpaca_trade_api as tradeapi
@@ -32,8 +29,10 @@ alpaca_api = tradeapi.REST(ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_BASE_URL, a
 def fetch_stock_data(stock_symbol, period='1y'):
     try:
         stock_data = yf.download(stock_symbol, period=period)
+        if stock_data.empty:
+            print(f"No data found for {stock_symbol}")
+            return None
         stock_data['Return'] = stock_data['Close'].pct_change()
-        stock_data['Target'] = (stock_data['Return'].shift(-1) > 0).astype(int)
         stock_data.dropna(inplace=True)
         return stock_data
     except Exception as e:
@@ -49,14 +48,17 @@ def calculate_indicators(stock_data):
 
         # RSI (Relative Strength Index)
         delta = stock_data['Close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / loss
+        gain = delta.where(delta > 0, 0)
+        loss = -delta.where(delta < 0, 0)
+        avg_gain = gain.rolling(window=14).mean()
+        avg_loss = loss.rolling(window=14).mean()
+        rs = avg_gain / avg_loss
         stock_data['RSI'] = 100 - (100 / (1 + rs))
 
         # Bollinger Bands
-        stock_data['BB_Upper'] = stock_data['MA_20'] + 2 * stock_data['Close'].rolling(window=20).std()
-        stock_data['BB_Lower'] = stock_data['MA_20'] - 2 * stock_data['Close'].rolling(window=20).std()
+        stock_data['BB_Middle'] = stock_data['MA_20']
+        stock_data['BB_Upper'] = stock_data['BB_Middle'] + 2 * stock_data['Close'].rolling(window=20).std()
+        stock_data['BB_Lower'] = stock_data['BB_Middle'] - 2 * stock_data['Close'].rolling(window=20).std()
 
         stock_data.dropna(inplace=True)
         return stock_data
@@ -98,7 +100,7 @@ def generate_signals(stock_data):
 
 # Telegram Bot Commands
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Welcome to the AI-Powered Trading Bot! Use /signals for buy/sell alerts.")
+    await update.message.reply_text("Hello Mikey Sir, Welcome to the AI-Powered Trading Bot! Use /signals for buy/sell alerts.")
 
 async def get_signals(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Analyzing market... Please wait.")
@@ -108,20 +110,21 @@ async def get_signals(update: Update, context: ContextTypes.DEFAULT_TYPE):
         stock_data = fetch_stock_data(stock_symbol)
         if stock_data is not None:
             stock_data = calculate_indicators(stock_data)
-            signals = generate_signals(stock_data)
+            if stock_data is not None:
+                signals = generate_signals(stock_data)
 
-            if signals:
-                buy_points = signals['buy_points']
-                sell_points = signals['sell_points']
-                stop_loss_points = signals['stop_loss_points']
+                if signals:
+                    buy_points = signals['buy_points']
+                    sell_points = signals['sell_points']
+                    stop_loss_points = signals['stop_loss_points']
 
-                result = (
-                    f"{stock_symbol}:\n"
-                    f"Buy Points: {buy_points}\n"
-                    f"Sell Points: {sell_points}\n"
-                    f"Stop-Loss Points: {stop_loss_points}\n"
-                )
-                results.append(result)
+                    result = (
+                        f"{stock_symbol}:\n"
+                        f"Buy Points: {buy_points}\n"
+                        f"Sell Points: {sell_points}\n"
+                        f"Stop-Loss Points: {stop_loss_points}\n"
+                    )
+                    results.append(result)
 
     if results:
         await update.message.reply_text("\n".join(results))
