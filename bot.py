@@ -50,6 +50,7 @@ STOCK_SYMBOLS_INTRADAY = [
 # Initialize Alpaca API
 api = tradeapi.REST(ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_BASE_URL)
 
+
 # Function to fetch historical data from Alpaca (for intraday)
 def fetch_intraday_data(symbol, timeframe="1Min", limit=200): # Increased Limit for Intraday
     try:
@@ -92,8 +93,8 @@ def calculate_rsi(prices, window=14):
     delta = prices.diff()
     up = delta.clip(lower=0)
     down = -1 * delta.clip(upper=0)
-    ema_up = up.rolling(window=window).mean()
-    ema_down = down.rolling(window=window).mean()
+    ema_up = up.rolling(window=window).mean()  # Using .mean() for simplicity
+    ema_down = down.rolling(window=window).mean()  # Using .mean() for simplicity
     rsi = 100 - (100 / (1 + (ema_up / ema_down)))
     return rsi
 
@@ -107,7 +108,7 @@ def get_intraday_signals(symbol, model):
     data['SMA_5'] = data['Close'].rolling(window=5).mean()  # Shorter SMA
     data['SMA_15'] = data['Close'].rolling(window=15).mean() # Shorter SMA
     data['Volatility'] = data['Close'].rolling(window=10).std()
-    data['RSI'] = calculate_rsi(data['Close'], window=14)  # Add RSI
+    data['RSI'] = calculate_rsi(data['Close'], window=14)  # Use the manual function
 
     data.dropna(inplace=True)
     X_recent = data[['SMA_5', 'SMA_15', 'Volatility','RSI']].tail(1)
