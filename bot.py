@@ -7,7 +7,14 @@ from sklearn.model_selection import train_test_split
 from alpaca_trade_api.rest import REST
 from alpaca_trade_api.stream import Stream
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackContext, MessageHandler, filters
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackContext,
+    MessageHandler,
+    filters,
+    CallbackQueryHandler  # Added this import
+)
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -197,9 +204,10 @@ async def stock_info(update: Update, context: CallbackContext):
     else:
         await query.edit_message_text(f"Failed to fetch stock data for {symbol}.")
 
-# Add command handlers
+# Initialize Telegram bot
 application = Application.builder().token(TELEGRAM_TOKEN).build()
 
+# Add command handlers
 application.add_handler(CommandHandler('start', start))
 application.add_handler(CommandHandler('stock', stock_analysis))
 application.add_handler(CommandHandler('crypto', crypto_analysis))
@@ -213,7 +221,7 @@ keyboard = [[InlineKeyboardButton(symbol, callback_data=symbol)] for symbol in s
 reply_markup = InlineKeyboardMarkup(keyboard)
 
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda update, context: update.message.reply_text("Please use the available commands.", reply_markup=reply_markup)))
-application.add_handler(CallbackQueryHandler(stock_info))
+application.add_handler(CallbackQueryHandler(stock_info))  # Correctly added here
 
 # Train the model at startup
 train_model()
