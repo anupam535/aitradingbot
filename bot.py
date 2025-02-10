@@ -15,7 +15,7 @@ load_dotenv()
 # Alpaca API configuration
 ALPACA_API_KEY = os.getenv('ALPACA_API_KEY')
 ALPACA_SECRET_KEY = os.getenv('ALPACA_SECRET_KEY')
-BASE_URL = 'https://paper-api.alpaca.markets'  # Use paper trading for testing
+BASE_URL = 'https://paper-api.alpaca.markets/v2'  # Use paper trading for testing
 
 api = REST(ALPACA_API_KEY, ALPACA_SECRET_KEY, BASE_URL, api_version='v2')
 
