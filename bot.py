@@ -184,9 +184,21 @@ def intraday_signals(update, context): # Existing single stock command
 # Define the start function BEFORE run_bot()
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Welcome to the AI Trading Bot! Use /analyze or /signals to get started.")
+
+
 async def analyze(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Analyzing the market... (This function needs implementation)")
-    
+
+
+async def signals(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Signals command is under development.")
+
+async def intraday_signals(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Intraday signals command is under development.")
+
+async def intraday_signals_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Intraday signals for all stocks is under development.")
+  
 def run_bot():
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Get token from environment
     if not TELEGRAM_BOT_TOKEN:
